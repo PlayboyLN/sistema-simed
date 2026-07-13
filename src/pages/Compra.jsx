@@ -72,9 +72,11 @@ export default function Compra() {
 
         if (error) {
 
-            alert("Erro ao registrar.")
+             console.log(error)
 
-            return
+            alert(error.message)
+
+        return
 
         }
 
