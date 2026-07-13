@@ -1,114 +1,141 @@
-import { useEffect,useState } from "react"
-
-import { useNavigate }
-
-from "react-router-dom"
-
-import { supabase }
-
-from "../services/supabase"
-
+import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { supabase } from "../services/supabase"
 import "../styles/pages.css"
 
-export default function Historico(){
+export default function Historico() {
 
-const navigate=
-useNavigate()
+    const navigate = useNavigate()
 
-const [movs,setMovs]=
-useState([])
+    const [historico, setHistorico] = useState([])
 
-useEffect(()=>{
+    useEffect(() => {
 
-carregar()
+        carregar()
 
-},[])
+    }, [])
 
-async function carregar(){
+    async function carregar() {
 
-const {data}=
+        const { data: retiradas } = await supabase
+            .from("retiradas_bau")
+            .select(`
+                *,
+                itens_bau(nome)
+            `)
 
-await supabase
+        const { data: depositos } = await supabase
+            .from("depositos")
+            .select("*")
 
-.from("movimentacoes")
+        const listaRetiradas = (retiradas || []).map(item => ({
+            id: "R" + item.id,
+            tipo: "Retirada",
+            usuario: item.usuario,
+            descricao: item.itens_bau?.nome || "-",
+            quantidade: item.quantidade,
+            valor: null,
+            data: item.created_at
+        }))
 
-.select("*")
+        const listaDepositos = (depositos || []).map(item => ({
+            id: "D" + item.id,
+            tipo: "Depósito",
+            usuario: item.usuario,
+            descricao: item.observacao,
+            quantidade: null,
+            valor: item.valor,
+            data: item.created_at
+        }))
 
-.order(
-"id",
-{ascending:false}
-)
+        const lista = [...listaRetiradas, ...listaDepositos]
 
-setMovs(
-data||[]
-)
+        lista.sort((a, b) => new Date(b.data) - new Date(a.data))
 
-}
+        setHistorico(lista)
 
-return(
+    }
 
-<div className="page">
+    return (
 
-<button
+        <div className="page">
 
-className="back-btn"
+            <button
+                className="back-btn"
+                onClick={() => navigate("/dashboard")}
+            >
 
-onClick={()=>navigate(
-"/dashboard"
-)}
+                ← Voltar Dashboard
 
->
+            </button>
 
-← Voltar Dashboard
+            <h1>Histórico</h1>
 
-</button>
+            <div style={{ marginTop: 25 }}>
 
-<h1>
+                {
 
-Historico
+                    historico.map(item => (
 
-</h1>
+                        <div
+                            key={item.id}
+                            className="product-card"
+                        >
 
-{
+                            <div style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center"
+                            }}>
 
-movs.map(
+                                <div>
 
-(m)=>(
+                                    <strong>
 
-<div
+                                        {item.tipo == "Retirada" ? "📦 Retirada" : "💰 Depósito"}
 
-className="product-card"
+                                    </strong>
 
-key={m.id}
+                                    <br />
 
->
+                                    Usuário: {item.usuario}
 
-{m.usuario}
+                                    <br />
 
--
+                                    {
 
-{m.tipo}
+                                        item.tipo == "Retirada"
 
--
+                                            ?
 
-{m.produto}
+                                            <>Item: {item.descricao} | Quantidade: {item.quantidade}</>
 
--
+                                            :
 
-Qtd:
+                                            <>Valor: R$ {Number(item.valor).toLocaleString("pt-BR")} | {item.descricao}</>
 
-{m.quantidade}
+                                    }
 
-</div>
+                                </div>
 
-)
+                                <div>
 
-)
+                                    {new Date(item.data).toLocaleString("pt-BR")}
 
-}
+                                </div>
 
-</div>
+                            </div>
 
-)
+                        </div>
+
+                    ))
+
+                }
+
+            </div>
+
+        </div>
+
+    )
 
 }

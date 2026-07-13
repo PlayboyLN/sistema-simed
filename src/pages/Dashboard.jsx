@@ -4,191 +4,237 @@ import { supabase } from "../services/supabase"
 import Sidebar from "../components/Sidebar"
 import Topbar from "../components/Topbar"
 
-export default function Dashboard(){
+export default function Dashboard() {
 
-const usuario=localStorage.getItem("usuario")
+    const usuario = localStorage.getItem("usuario")
 
-const [depositado,setDepositado]=useState(0)
-const [retiradas,setRetiradas]=useState(0)
-const [ultimasRetiradas,setUltimasRetiradas]=useState([])
-const [ultimosDepositos,setUltimosDepositos]=useState([])
+    const [depositado, setDepositado] = useState(0)
+    const [retiradas, setRetiradas] = useState(0)
+    const [ultimasRetiradas, setUltimasRetiradas] = useState([])
+    const [ultimosDepositos, setUltimosDepositos] = useState([])
 
-useEffect(()=>{
+    useEffect(() => {
 
-carregar()
+        carregar()
 
-},[])
+    }, [])
 
-async function carregar(){
+    async function carregar() {
 
-const {data:dep}=await supabase
-.from("depositos")
-.select("*")
+        const { data: dep } = await supabase
+            .from("depositos")
+            .select("*")
 
-const {data:ret}=await supabase
-.from("retiradas_bau")
-.select(`
-*,
-itens_bau(nome)
-`)
+        const { data: ret } = await supabase
+            .from("retiradas_bau")
+            .select(`
+                *,
+                itens_bau(nome)
+            `)
 
-const totalDepositos=(dep||[]).reduce(
-(acc,x)=>acc+Number(x.valor||0),
-0
-)
+        const totalDepositos = (dep || []).reduce(
+            (acc, x) => acc + Number(x.valor || 0),
+            0
+        )
 
-const totalRetiradas=(ret||[]).reduce(
-(acc,x)=>acc+Number(x.quantidade||0),
-0
-)
+        const totalRetiradas = (ret || []).reduce(
+            (acc, x) => acc + Number(x.quantidade || 0),
+            0
+        )
 
-setDepositado(totalDepositos)
+        setDepositado(totalDepositos)
 
-setRetiradas(totalRetiradas)
+        setRetiradas(totalRetiradas)
 
-setUltimasRetiradas(
-(ret||[])
-.slice()
-.reverse()
-.slice(0,5)
-)
+        setUltimasRetiradas(
+            (ret || [])
+                .slice()
+                .reverse()
+                .slice(0, 5)
+        )
 
-setUltimosDepositos(
-(dep||[])
-.slice()
-.reverse()
-.slice(0,5)
-)
+        setUltimosDepositos(
+            (dep || [])
+                .slice()
+                .reverse()
+                .slice(0, 5)
+        )
 
-}
+    }
 
-return(
+    async function fecharSemana() {
 
-<div className="dashboard">
+        if (usuario !== "admin") return
 
-<Sidebar/>
+        const confirmar = window.confirm(
+            "Tem certeza que deseja apagar todas as retiradas e depósitos da semana?"
+        )
 
-<div className="content">
+        if (!confirmar) return
 
-<Topbar/>
+        await supabase
+            .from("retiradas_bau")
+            .delete()
+            .neq("id", 0)
 
-<div className="cards-grid">
+        await supabase
+            .from("depositos")
+            .delete()
+            .neq("id", 0)
 
-<div className="stat-card">
+        alert("Semana encerrada com sucesso.")
 
-<span>Total Depositado</span>
+        carregar()
 
-<h1>
+    }
 
-R$ {depositado.toLocaleString("pt-BR")}
+    return (
 
-</h1>
+        <div className="dashboard">
 
-</div>
+            <Sidebar />
 
-<div className="stat-card">
+            <div className="content">
 
-<span>Total Retirado</span>
+                <Topbar />
 
-<h1>
+                <div className="cards-grid">
 
-{retiradas.toLocaleString("pt-BR")}
+                    <div className="stat-card">
 
-</h1>
+                        <span>Total Depositado</span>
 
-</div>
+                        <h1>
 
-<div className="stat-card">
+                            R$ {depositado.toLocaleString("pt-BR")}
 
-<span>Usuário</span>
+                        </h1>
 
-<h1>
+                    </div>
 
-{usuario}
+                    <div className="stat-card">
 
-</h1>
+                        <span>Total Retirado</span>
 
-</div>
+                        <h1>
 
-</div>
+                            {retiradas.toLocaleString("pt-BR")}
 
-<div
-style={{
-display:"grid",
-gridTemplateColumns:"1fr 1fr",
-gap:"20px",
-marginTop:"25px"
-}}
->
+                        </h1>
 
-<div className="grafico">
+                    </div>
 
-<h2>Últimas Retiradas</h2>
+                    <div className="stat-card">
 
-{
+                        <span>Usuário</span>
 
-ultimasRetiradas.map(r=>(
+                        <h1>
 
-<div
-key={r.id}
-className="product-card"
->
+                            {usuario}
 
-<strong>{r.usuario}</strong>
+                        </h1>
 
-<br/>
+                    </div>
 
-📦 {r.itens_bau?.nome}
+                </div>
 
-<br/>
+                {
+                    usuario === "admin" &&
 
-Quantidade: {r.quantidade}
+                    <button
+                        className="primary-btn"
+                        style={{
+                            background: "#c62828",
+                            color: "#fff",
+                            marginTop: "20px",
+                            marginBottom: "20px"
+                        }}
+                        onClick={fecharSemana}
+                    >
 
-</div>
+                        🗑️ Fechar Semana
 
-))
+                    </button>
 
-}
+                }
 
-</div>
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "20px",
+                        marginTop: "25px"
+                    }}
+                >
 
-<div className="grafico">
+                    <div className="grafico">
 
-<h2>Últimos Depósitos</h2>
+                        <h2>Últimas Retiradas</h2>
 
-{
+                        {
 
-ultimosDepositos.map(d=>(
+                            ultimasRetiradas.map(r => (
 
-<div
-key={d.id}
-className="product-card"
->
+                                <div
+                                    key={r.id}
+                                    className="product-card"
+                                >
 
-<strong>{d.usuario}</strong>
+                                    <strong>{r.usuario}</strong>
 
-<br/>
+                                    <br />
 
-💰 R$ {Number(d.valor).toLocaleString("pt-BR")}
+                                    📦 {r.itens_bau?.nome}
 
-<br/>
+                                    <br />
 
-{d.observacao}
+                                    Quantidade: {r.quantidade}
 
-</div>
+                                </div>
 
-))
+                            ))
 
-}
+                        }
 
-</div>
+                    </div>
 
-</div>
+                    <div className="grafico">
 
-</div>
+                        <h2>Últimos Depósitos</h2>
 
-</div>
+                        {
 
-)
+                            ultimosDepositos.map(d => (
+
+                                <div
+                                    key={d.id}
+                                    className="product-card"
+                                >
+
+                                    <strong>{d.usuario}</strong>
+
+                                    <br />
+
+                                    💰 R$ {Number(d.valor).toLocaleString("pt-BR")}
+
+                                    <br />
+
+                                    {d.observacao}
+
+                                </div>
+
+                            ))
+
+                        }
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    )
 
 }
