@@ -54,70 +54,6 @@ navigate("/dashboard")
 
 }
 
-async function criarConta(){
-
-if(!nome || !senha){
-
-alert(
-"Preencha nome e senha"
-)
-
-return
-
-}
-
-const { data:usuarioExistente } =
-
-await supabase
-
-.from("usuarios")
-
-.select("*")
-
-.eq("nome",nome)
-
-.single()
-
-if(usuarioExistente){
-
-alert(
-"Usuário já existe"
-)
-
-return
-
-}
-
-const { error } =
-
-await supabase
-
-.from("usuarios")
-
-.insert({
-
-nome,
-
-senha
-
-})
-
-if(error){
-
-alert(
-"Erro ao criar conta"
-)
-
-return
-
-}
-
-alert(
-"Conta criada com sucesso!"
-)
-
-}
-
 return(
 
 <div className="login-container">
@@ -175,18 +111,6 @@ onClick={entrar}
 >
 
 Entrar
-
-</button>
-
-<button
-
-className="criar-btn"
-
-onClick={criarConta}
-
->
-
-Criar Conta
 
 </button>
 
