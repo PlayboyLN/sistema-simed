@@ -1,78 +1,85 @@
 import {
     LayoutDashboard,
+    ShoppingCart,
+    Wallet,
+    Boxes,
     Package,
-    Archive,
-    DollarSign,
     History,
     LogOut
 } from "lucide-react"
 
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 
 export default function Sidebar() {
 
     const navigate = useNavigate()
+    const location = useLocation()
 
     const usuario = localStorage.getItem("usuario")
 
     function sair() {
-
         localStorage.clear()
-
         navigate("/")
-
     }
+
+    const isActive = (path) => location.pathname === path
 
     return (
 
         <div className="sidebar">
 
             <div className="logo">
-
-                SIMED CONTROLE
-
+                SIMED VENDAS
             </div>
 
             <div className="menu">
 
-                <button onClick={() => navigate("/dashboard")}>
-
+                <button 
+                    className={isActive("/dashboard") ? "active" : ""}
+                    onClick={() => navigate("/dashboard")}
+                >
                     <LayoutDashboard size={18} />
-
                     <span>Dashboard</span>
-
                 </button>
 
-                <button onClick={() => navigate("/produtos")}>
+                <button 
+                    className={isActive("/venda") ? "active" : ""}
+                    onClick={() => navigate("/venda")}
+                >
+                    <ShoppingCart size={18} />
+                    <span>Nova Venda (PDV)</span>
+                </button>
 
+                <button 
+                    className={isActive("/caixa") ? "active" : ""}
+                    onClick={() => navigate("/caixa")}
+                >
+                    <Wallet size={18} />
+                    <span>Caixa</span>
+                </button>
+
+                <button 
+                    className={isActive("/estoque") ? "active" : ""}
+                    onClick={() => navigate("/estoque")}
+                >
+                    <Boxes size={18} />
+                    <span>Estoque</span>
+                </button>
+
+                <button 
+                    className={isActive("/produtos") ? "active" : ""}
+                    onClick={() => navigate("/produtos")}
+                >
                     <Package size={18} />
-
-                    <span>Itens do Baú</span>
-
+                    <span>Produtos</span>
                 </button>
 
-                <button onClick={() => navigate("/compra")}>
-
-                    <Archive size={18} />
-
-                    <span>Retirada do Baú</span>
-
-                </button>
-
-                <button onClick={() => navigate("/venda")}>
-
-                    <DollarSign size={18} />
-
-                    <span>Depósito</span>
-
-                </button>
-
-                <button onClick={() => navigate("/historico")}>
-
+                <button 
+                    className={isActive("/historico") ? "active" : ""}
+                    onClick={() => navigate("/historico")}
+                >
                     <History size={18} />
-
                     <span>Histórico</span>
-
                 </button>
 
             </div>
@@ -80,20 +87,15 @@ export default function Sidebar() {
             <div className="user-box">
 
                 <div className="user-name">
-
-                    {usuario}
-
+                    👤 {usuario || "Operador"}
                 </div>
 
                 <button
                     className="logout-btn"
                     onClick={sair}
                 >
-
                     <LogOut size={18} />
-
                     <span>Sair</span>
-
                 </button>
 
             </div>
@@ -102,4 +104,4 @@ export default function Sidebar() {
 
     )
 
-}
+}

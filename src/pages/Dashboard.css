@@ -70,11 +70,13 @@ transition:.2s;
 
 }
 
-.menu button:hover{
+.menu button:hover, .menu button.active{
 
 background:#FFC107;
 
 color:black;
+
+font-weight:700;
 
 }
 
