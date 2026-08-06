@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"
+import { supabase } from "./supabase.js"
 
 const INITIAL_PRODUTOS = [
   {
@@ -54,9 +54,9 @@ const STORAGE_KEYS = {
   CAIXA_SESSAO: "simed_caixa_sessao"
 }
 
-// Helper to get local data safely
 function getLocal(key, defaultValue) {
   try {
+    if (typeof localStorage === "undefined") return defaultValue
     const data = localStorage.getItem(key)
     return data ? JSON.parse(data) : defaultValue
   } catch (e) {
@@ -67,14 +67,15 @@ function getLocal(key, defaultValue) {
 
 function setLocal(key, value) {
   try {
+    if (typeof localStorage === "undefined") return
     localStorage.setItem(key, JSON.stringify(value))
   } catch (e) {
     console.error("Erro ao salvar no localStorage", e)
   }
 }
 
-// Initializing LocalStorage if empty
 function initLocalStorage() {
+  if (typeof localStorage === "undefined") return
   if (!localStorage.getItem(STORAGE_KEYS.PRODUTOS)) {
     setLocal(STORAGE_KEYS.PRODUTOS, INITIAL_PRODUTOS)
   }
@@ -85,7 +86,7 @@ function initLocalStorage() {
     setLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, [
       {
         id: "m_init",
-        usuario: localStorage.getItem("usuario") || "admin",
+        usuario: (typeof localStorage !== "undefined" && localStorage.getItem("usuario")) || "admin",
         tipo: "suprimento",
         valor: 100.00,
         descricao: "Fundo de Caixa Inicial",
@@ -98,7 +99,7 @@ function initLocalStorage() {
       aberto: true,
       saldo_inicial: 100.00,
       aberto_em: new Date().toISOString(),
-      operador: localStorage.getItem("usuario") || "admin"
+      operador: (typeof localStorage !== "undefined" && localStorage.getItem("usuario")) || "admin"
     })
   }
 }
@@ -110,12 +111,13 @@ export const dbService = {
   async getProdutos() {
     try {
       const { data, error } = await supabase.from("produtos").select("*").order("nome")
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setLocal(STORAGE_KEYS.PRODUTOS, data)
         return data
       }
+      if (error) console.warn("Supabase getProdutos aviso:", error.message)
     } catch (e) {
-      console.warn("Usando localStorage para produtos devido a Supabase não responder:", e)
+      console.warn("Usando localStorage para produtos:", e)
     }
     return getLocal(STORAGE_KEYS.PRODUTOS, INITIAL_PRODUTOS)
   },
@@ -133,21 +135,35 @@ export const dbService = {
       created_at: new Date().toISOString()
     }
 
-    try {
-      const { data, error } = await supabase.from("produtos").insert(newProduto).select()
-      if (!error && data && data[0]) {
-        const local = getLocal(STORAGE_KEYS.PRODUTOS, [])
-        local.unshift(data[0])
-        setLocal(STORAGE_KEYS.PRODUTOS, local)
-        return data[0]
-      }
-    } catch (e) {
-      console.warn("Falha ao salvar produto no Supabase, salvando localmente", e)
-    }
-
     const local = getLocal(STORAGE_KEYS.PRODUTOS, [])
     local.unshift(newProduto)
     setLocal(STORAGE_KEYS.PRODUTOS, local)
+
+    try {
+      let payload = { ...newProduto }
+      let { data, error } = await supabase.from("produtos").insert(payload).select()
+      
+      if (error && error.code === "PGRST204") {
+        delete payload.quantidade_vendida
+        delete payload.codigo_barras
+        delete payload.categoria
+        delete payload.id
+        const res2 = await supabase.from("produtos").insert(payload).select()
+        data = res2.data
+        error = res2.error
+      }
+
+      if (!error && data && data[0]) {
+        local[0] = { ...local[0], ...data[0] }
+        setLocal(STORAGE_KEYS.PRODUTOS, local)
+        return local[0]
+      } else if (error) {
+        console.error("Erro ao inserir produto no Supabase:", error.message)
+      }
+    } catch (e) {
+      console.error("Erro ao salvar produto no Supabase", e)
+    }
+
     return newProduto
   },
 
@@ -160,7 +176,15 @@ export const dbService = {
     }
 
     try {
-      await supabase.from("produtos").update(updates).eq("id", id)
+      let payload = { ...updates }
+      let { error } = await supabase.from("produtos").update(payload).eq("id", id)
+
+      if (error && error.code === "PGRST204") {
+        delete payload.quantidade_vendida
+        delete payload.codigo_barras
+        delete payload.categoria
+        await supabase.from("produtos").update(payload).eq("id", id)
+      }
     } catch (e) {
       console.warn("Erro ao atualizar Supabase produto", e)
     }
@@ -189,7 +213,7 @@ export const dbService = {
 
     const novaVenda = {
       id: "V" + Date.now().toString().slice(-6),
-      usuario: usuario || localStorage.getItem("usuario") || "admin",
+      usuario: usuario || (typeof localStorage !== "undefined" && localStorage.getItem("usuario")) || "admin",
       total,
       desconto: Number(desconto) || 0,
       forma_pagamento: formaPagamento,
@@ -199,7 +223,7 @@ export const dbService = {
       created_at: new Date().toISOString()
     }
 
-    // 1. Atualizar Produtos (Estoque e Quantidade Vendida)
+    // 1. Atualizar Produtos
     const produtos = getLocal(STORAGE_KEYS.PRODUTOS, [])
     for (const item of itens) {
       const prodIndex = produtos.findIndex(p => String(p.id) === String(item.produto_id))
@@ -208,10 +232,11 @@ export const dbService = {
         produtos[prodIndex].quantidade_vendida = (produtos[prodIndex].quantidade_vendida || 0) + item.quantidade
         
         try {
-          await supabase.from("produtos").update({
-            estoque: produtos[prodIndex].estoque,
-            quantidade_vendida: produtos[prodIndex].quantidade_vendida
-          }).eq("id", item.produto_id)
+          let upd = { estoque: produtos[prodIndex].estoque, quantidade_vendida: produtos[prodIndex].quantidade_vendida }
+          let { error } = await supabase.from("produtos").update(upd).eq("id", item.produto_id)
+          if (error && error.code === "PGRST204") {
+            await supabase.from("produtos").update({ estoque: produtos[prodIndex].estoque }).eq("id", item.produto_id)
+          }
         } catch (e) {
           console.warn("Erro ao sincronizar estoque com Supabase", e)
         }
@@ -225,24 +250,30 @@ export const dbService = {
     setLocal(STORAGE_KEYS.VENDAS, vendas)
 
     try {
-      await supabase.from("vendas").insert({
+      const { error } = await supabase.from("vendas").insert({
+        id: novaVenda.id,
         usuario: novaVenda.usuario,
         total: novaVenda.total,
+        desconto: novaVenda.desconto,
         forma_pagamento: novaVenda.forma_pagamento,
+        valor_recebido: novaVenda.valor_recebido,
+        troco: novaVenda.troco,
         itens: JSON.stringify(novaVenda.itens),
         created_at: novaVenda.created_at
       })
+      if (error) console.error("Erro insert venda no Supabase:", error.message)
     } catch (e) {
       console.warn("Erro ao enviar venda para o Supabase", e)
     }
 
-    // 3. Registrar movimentação no Caixa
+    // 3. Registrar movimentação no Caixa (com quantidade: 1 para restrições do Supabase)
     const movCaixa = {
       id: "MC" + Date.now().toString().slice(-6),
       usuario: novaVenda.usuario,
       tipo: "venda",
       valor: total,
       descricao: `Venda #${novaVenda.id} (${formaPagamento})`,
+      quantidade: 1,
       created_at: novaVenda.created_at
     }
     const movs = getLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, [])
@@ -250,13 +281,15 @@ export const dbService = {
     setLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, movs)
 
     try {
-      await supabase.from("movimentacoes").insert({
+      const { error } = await supabase.from("movimentacoes").insert({
         usuario: movCaixa.usuario,
         tipo: "venda",
         valor: total,
         produto: movCaixa.descricao,
+        quantidade: 1,
         created_at: movCaixa.created_at
       })
+      if (error) console.error("Erro insert movimentacao no Supabase:", error.message)
     } catch (e) {
       console.warn("Erro ao salvar movimentação no Supabase", e)
     }
@@ -277,7 +310,7 @@ export const dbService = {
     venda.estornada_em = new Date().toISOString()
     setLocal(STORAGE_KEYS.VENDAS, vendas)
 
-    // Devolver produtos ao estoque e subtrair quantidade vendida
+    // Devolver produtos ao estoque
     const produtos = getLocal(STORAGE_KEYS.PRODUTOS, [])
     for (const item of venda.itens) {
       const prodIndex = produtos.findIndex(p => String(p.id) === String(item.produto_id))
@@ -287,8 +320,7 @@ export const dbService = {
         
         try {
           await supabase.from("produtos").update({
-            estoque: produtos[prodIndex].estoque,
-            quantidade_vendida: produtos[prodIndex].quantidade_vendida
+            estoque: produtos[prodIndex].estoque
           }).eq("id", item.produto_id)
         } catch (e) {
           console.warn("Erro ao atualizar estoque no estorno Supabase", e)
@@ -300,31 +332,64 @@ export const dbService = {
     // Registrar estorno no caixa
     const movCaixa = {
       id: "MC_EST_" + Date.now().toString().slice(-6),
-      usuario: localStorage.getItem("usuario") || "admin",
+      usuario: (typeof localStorage !== "undefined" && localStorage.getItem("usuario")) || "admin",
       tipo: "estorno",
       valor: venda.total,
       descricao: `Estorno Venda #${venda.id}`,
+      quantidade: 1,
       created_at: new Date().toISOString()
     }
     const movs = getLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, [])
     movs.unshift(movCaixa)
     setLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, movs)
 
+    try {
+      await supabase.from("vendas").update({ estornada: true }).eq("id", vendaId)
+      await supabase.from("movimentacoes").insert({
+        usuario: movCaixa.usuario,
+        tipo: "estorno",
+        valor: movCaixa.valor,
+        produto: movCaixa.descricao,
+        quantidade: 1,
+        created_at: movCaixa.created_at
+      })
+    } catch (e) {
+      console.warn("Erro ao atualizar estorno no Supabase", e)
+    }
+
     return true
   },
 
   // GESTÃO DO CAIXA
   async getMovimentacoesCaixa() {
+    try {
+      const { data, error } = await supabase.from("movimentacoes").select("*").order("created_at", { ascending: false })
+      if (!error && data && data.length > 0) {
+        const formatadas = data.map(m => ({
+          id: m.id || "M" + Math.random(),
+          usuario: m.usuario,
+          tipo: m.tipo,
+          valor: m.valor,
+          descricao: m.produto || m.descricao || "Movimentação",
+          created_at: m.created_at
+        }))
+        setLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, formatadas)
+        return formatadas
+      }
+    } catch (e) {
+      console.warn("Erro ao buscar movimentacoes no Supabase", e)
+    }
     return getLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, [])
   },
 
   async registrarMovimentacaoCaixa({ usuario, tipo, valor, descricao }) {
     const mov = {
       id: "MC" + Date.now().toString().slice(-6),
-      usuario: usuario || localStorage.getItem("usuario") || "admin",
-      tipo, // 'suprimento', 'sangria', 'venda', 'estorno'
+      usuario: usuario || (typeof localStorage !== "undefined" && localStorage.getItem("usuario")) || "admin",
+      tipo,
       valor: Number(valor) || 0,
       descricao: descricao || (tipo === "suprimento" ? "Suprimento de Caixa" : "Sangria de Caixa"),
+      quantidade: 1,
       created_at: new Date().toISOString()
     }
 
@@ -333,13 +398,15 @@ export const dbService = {
     setLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, movs)
 
     try {
-      await supabase.from("movimentacoes").insert({
+      const { error } = await supabase.from("movimentacoes").insert({
         usuario: mov.usuario,
         tipo: tipo,
         valor: mov.valor,
         produto: mov.descricao,
+        quantidade: 1,
         created_at: mov.created_at
       })
+      if (error) console.error("Erro insert movimentacao no Supabase:", error.message)
     } catch (e) {
       console.warn("Erro no Supabase ao registrar movimentação", e)
     }
@@ -348,7 +415,7 @@ export const dbService = {
   },
 
   async getSaldoCaixa() {
-    const movs = getLocal(STORAGE_KEYS.MOVIMENTACOES_CAIXA, [])
+    const movs = await this.getMovimentacoesCaixa()
     const total = movs.reduce((acc, m) => {
       if (m.tipo === "suprimento" || m.tipo === "venda" || m.tipo === "entrada") {
         return acc + Number(m.valor || 0)
@@ -376,6 +443,19 @@ export const dbService = {
   },
 
   async getVendas() {
+    try {
+      const { data, error } = await supabase.from("vendas").select("*").order("created_at", { ascending: false })
+      if (!error && data && data.length > 0) {
+        const formatadas = data.map(v => ({
+          ...v,
+          itens: typeof v.itens === "string" ? JSON.parse(v.itens) : (v.itens || [])
+        }))
+        setLocal(STORAGE_KEYS.VENDAS, formatadas)
+        return formatadas
+      }
+    } catch (e) {
+      console.warn("Erro ao buscar vendas no Supabase", e)
+    }
     return getLocal(STORAGE_KEYS.VENDAS, [])
   },
 
@@ -389,18 +469,18 @@ export const dbService = {
         tipo: "suprimento",
         valor: 0,
         descricao: "Fundo de Caixa Zerado",
+        quantidade: 1,
         created_at: new Date().toISOString()
       }
     ])
     
-    // Reset quantidade vendida dos produtos
     const produtos = getLocal(STORAGE_KEYS.PRODUTOS, INITIAL_PRODUTOS)
     const resetProdutos = produtos.map(p => ({ ...p, quantidade_vendida: 0 }))
     setLocal(STORAGE_KEYS.PRODUTOS, resetProdutos)
 
     try {
-      await supabase.from("vendas").delete().neq("id", 0)
-      await supabase.from("movimentacoes").delete().neq("id", 0)
+      await supabase.from("vendas").delete().neq("id", "0")
+      await supabase.from("movimentacoes").delete().neq("id", "0")
     } catch (e) {
       console.warn("Erro ao zerar no Supabase", e)
     }
