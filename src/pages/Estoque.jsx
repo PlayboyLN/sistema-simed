@@ -137,7 +137,7 @@ export default function Estoque() {
             <div style={{ display: "flex", gap: "8px" }}>
               {[
                 { id: "todos", label: "Todos" },
-                { id: "baixo", label: "Estoque Baixo (≤5)" },
+                { id: "baixo", label: "Estoque Baixo (≤100)" },
                 { id: "zerado", label: "Sem Estoque" }
               ].map((f) => (
                 <button
