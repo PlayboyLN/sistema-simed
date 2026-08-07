@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../services/supabase"
 import "./Login.css"
@@ -9,6 +9,13 @@ const navigate = useNavigate()
 
 const [nome,setNome] = useState("")
 const [senha,setSenha] = useState("")
+
+useEffect(() => {
+  const usuario = localStorage.getItem("usuario")
+  if (usuario) {
+    navigate("/dashboard")
+  }
+}, [navigate])
 
 async function entrar(){
 

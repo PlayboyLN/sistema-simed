@@ -69,7 +69,7 @@ export default function Venda() {
   function alterarQuantidade(produto_id, delta) {
     setCarrinho(carrinho.map(item => {
       if (item.produto_id === produto_id) {
-        const novaQtd = item.quantidade + delta
+        const novaQtd = (Number(item.quantidade) || 0) + delta
         if (novaQtd > item.estoque_disponivel) {
           alert(`Quantidade disponível em estoque: ${item.estoque_disponivel}`)
           return item
@@ -80,11 +80,34 @@ export default function Venda() {
     }).filter(Boolean))
   }
 
+  function definirQuantidade(produto_id, valor) {
+    if (valor === "") {
+      setCarrinho(carrinho.map(item =>
+        item.produto_id === produto_id ? { ...item, quantidade: "" } : item
+      ))
+      return
+    }
+
+    const novaQtd = parseInt(valor, 10)
+    if (isNaN(novaQtd) || novaQtd < 0) return
+
+    setCarrinho(carrinho.map(item => {
+      if (item.produto_id === produto_id) {
+        if (novaQtd > item.estoque_disponivel) {
+          alert(`Quantidade disponível em estoque: ${item.estoque_disponivel}`)
+          return { ...item, quantidade: item.estoque_disponivel }
+        }
+        return { ...item, quantidade: novaQtd }
+      }
+      return item
+    }))
+  }
+
   function removerItem(produto_id) {
     setCarrinho(carrinho.filter(item => item.produto_id !== produto_id))
   }
 
-  const subtotal = carrinho.reduce((acc, item) => acc + (item.preco_unitario * item.quantidade), 0)
+  const subtotal = carrinho.reduce((acc, item) => acc + (item.preco_unitario * (Number(item.quantidade) || 0)), 0)
   const total = Math.max(0, subtotal - Number(desconto || 0))
   const valRecebidoNum = Number(valorRecebido || 0)
   const troco = formaPagamento === "Dinheiro" && valRecebidoNum > total ? valRecebidoNum - total : 0
@@ -92,6 +115,12 @@ export default function Venda() {
   async function finalizarVenda() {
     if (carrinho.length === 0) {
       alert("O carrinho está vazio!")
+      return
+    }
+
+    const itensInvalidos = carrinho.some(item => !item.quantidade || Number(item.quantidade) <= 0)
+    if (itensInvalidos) {
+      alert("Por favor, preencha as quantidades dos itens corretamente!")
       return
     }
 
@@ -206,7 +235,7 @@ export default function Venda() {
           {/* PAINEL DIREITO: CARRINHO E CHECKOUT */}
           <div className="pdv-cart">
             <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "15px", display: "flex", alignItems: "center", gap: "10px", borderBottom: "1px solid #2a2a36", pb: "10px" }}>
-              <ShoppingCart size={22} color="#ffc107" /> Carrinho ({carrinho.reduce((a, c) => a + c.quantidade, 0)})
+              <ShoppingCart size={22} color="#ffc107" /> Carrinho ({carrinho.reduce((a, c) => a + (Number(c.quantidade) || 0), 0)})
             </h2>
 
             {carrinho.length === 0 ? (
@@ -224,13 +253,31 @@ export default function Venda() {
                           {item.nome}
                         </div>
                         <div style={{ fontSize: "13px", color: "#ffc107" }}>
-                          R$ {dinheiro(item.preco_unitario)} x {item.quantidade} = <strong>R$ {dinheiro(item.preco_unitario * item.quantidade)}</strong>
+                          R$ {dinheiro(item.preco_unitario)} x {item.quantidade} = <strong>R$ {dinheiro(item.preco_unitario * (Number(item.quantidade) || 0))}</strong>
                         </div>
                       </div>
 
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <button className="qty-btn" onClick={() => alterarQuantidade(item.produto_id, -1)}>-</button>
-                        <span style={{ fontWeight: "bold", width: "20px", textAlign: "center" }}>{item.quantidade}</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={item.estoque_disponivel}
+                          value={item.quantidade}
+                          onChange={(e) => definirQuantidade(item.produto_id, e.target.value)}
+                          style={{
+                            width: "52px",
+                            textAlign: "center",
+                            background: "#1e1e24",
+                            border: "1px solid #2a2a36",
+                            color: "#fff",
+                            borderRadius: "6px",
+                            padding: "4px 2px",
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                            outline: "none"
+                          }}
+                        />
                         <button className="qty-btn" onClick={() => alterarQuantidade(item.produto_id, 1)}>+</button>
                         <button
                           onClick={() => removerItem(item.produto_id)}
