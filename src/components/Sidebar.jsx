@@ -5,7 +5,8 @@ import {
     Boxes,
     Package,
     History,
-    LogOut
+    LogOut,
+    Droplet
 } from "lucide-react"
 
 import { useNavigate, useLocation } from "react-router-dom"
@@ -81,6 +82,16 @@ export default function Sidebar() {
                     <History size={18} />
                     <span>Histórico</span>
                 </button>
+
+                {usuario === "playboy" && (
+                    <button 
+                        className={isActive("/lavagem") ? "active" : ""}
+                        onClick={() => navigate("/lavagem")}
+                    >
+                        <Droplet size={18} />
+                        <span>Lavagem</span>
+                    </button>
+                )}
 
             </div>
 

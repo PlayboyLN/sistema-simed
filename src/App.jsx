@@ -6,6 +6,7 @@ import Venda from "./pages/Venda"
 import Estoque from "./pages/Estoque"
 import Caixa from "./pages/Caixa"
 import Historico from "./pages/Historico"
+import Lavagem from "./pages/Lavagem"
 import ProtectedRoute from "./components/ProtectedRoute"
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
         <Route path="/estoque" element={P(<Estoque />)} />
         <Route path="/caixa" element={P(<Caixa />)} />
         <Route path="/historico" element={P(<Historico />)} />
+        <Route path="/lavagem" element={P(<Lavagem />)} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
